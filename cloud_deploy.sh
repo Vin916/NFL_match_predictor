@@ -7,7 +7,7 @@ echo "==========================================="
 if ! command -v gcloud &> /dev/null; then
     echo "❌ Google Cloud CLI not found. Please install it first:"
     echo "   https://cloud.google.com/sdk/docs/install"
-    exit 1
+    exit 1 
 fi
 
 # Get project ID

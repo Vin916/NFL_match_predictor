@@ -9,7 +9,7 @@ import json
 # API base URL
 BASE_URL = "http://localhost:8080"
 
-def test_health():
+def test_health(): 
     """Test health endpoint"""
     print("🏥 Testing health endpoint...")
     try:

@@ -351,7 +351,7 @@ def get_teams():
         return jsonify({
             'teams': all_teams,
             'count': len(all_teams)
-        })
+        }) 
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

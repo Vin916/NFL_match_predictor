@@ -7,7 +7,7 @@ echo "===================================="
 echo ""
 echo "📚 Step 1: Training and saving models..."
 python3 train_and_save_model.py
-
+ 
 if [ $? -ne 0 ]; then
     echo "❌ Model training failed!"
     exit 1
