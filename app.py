@@ -4,7 +4,7 @@ NFL Predictor Flask REST API
 Serves NFL game predictions via HTTP endpoints
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import joblib
 import numpy as np
 import pandas as pd
@@ -195,7 +195,12 @@ def ensemble_predict(X):
 
 @app.route('/')
 def home():
-    """Health check endpoint"""
+    """Serve the web interface"""
+    return render_template('index.html')
+
+@app.route('/api')
+def api_status():
+    """API status endpoint"""
     return jsonify({
         'status': 'ok',
         'message': 'NFL Predictor API running',
@@ -361,6 +366,176 @@ def get_teams():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/predict_week', methods=['POST'])
+def predict_week():
+    """Predict all games for a specific week"""
+    try:
+        data = request.get_json()
+        
+        if 'season' not in data or 'week' not in data:
+            return jsonify({'error': 'Missing season or week parameter'}), 400
+        
+        season = data['season']
+        week = data['week']
+        
+        print(f"🏈 Fetching games for {season} Week {week}...")
+        
+        # Get fresh schedule data from NFL API
+        try:
+            schedules = nfl.import_schedules([season])
+            print(f"📊 Loaded {len(schedules)} total games for {season} season")
+        except Exception as e:
+            return jsonify({'error': f'Could not load NFL schedule data: {str(e)}'}), 500
+        
+        # Filter games for the specific week
+        if isinstance(week, str) and week.upper() in ['WC', 'DIV', 'CON', 'SB']:
+            # Playoff weeks
+            week_games = schedules[schedules['week'] == week.upper()]
+        else:
+            # Regular season weeks
+            week_games = schedules[schedules['week'] == int(week)]
+        
+        print(f"🎯 Found {len(week_games)} games for Week {week}")
+        
+        if len(week_games) == 0:
+            return jsonify({
+                'season': season,
+                'week': week,
+                'games': [],
+                'message': f'No games found for {season} Week {week}'
+            })
+        
+        # Get team statistics for predictions
+        try:
+            # Get baseline stats from previous season
+            baseline_year = season - 1 if season > 2022 else 2022
+            baseline_schedules = nfl.import_schedules([baseline_year])
+            baseline_stats = prepare_team_stats(baseline_schedules)
+            
+            # Get current season stats
+            current_completed = schedules.dropna(subset=['home_score', 'away_score'])
+            
+            if len(current_completed) > 0:
+                current_stats = prepare_team_stats(current_completed)
+                # Combine with weighted average (90% current, 10% baseline)
+                team_averages = combine_weighted_stats(baseline_stats, current_stats)
+            else:
+                # Use baseline stats if no current season games completed
+                team_averages = baseline_stats
+                team_averages['season'] = season
+            
+        except Exception as e:
+            return jsonify({'error': f'Could not prepare team statistics: {str(e)}'}), 500
+        
+        # Make predictions for each game
+        predictions = []
+        
+        for _, game in week_games.iterrows():
+            try:
+                home_team = game['home_team']
+                away_team = game['away_team']
+                
+                # Get team stats
+                home_stats_df = team_averages[team_averages['team'] == home_team]
+                away_stats_df = team_averages[team_averages['team'] == away_team]
+                
+                if len(home_stats_df) == 0 or len(away_stats_df) == 0:
+                    print(f"⚠️  Missing stats for {away_team} @ {home_team}, skipping...")
+                    continue
+                
+                home_stats = home_stats_df.iloc[0]
+                away_stats = away_stats_df.iloc[0]
+                
+                # Create matchup features
+                matchup = {}
+                
+                # Add all available stats
+                for col in team_averages.columns:
+                    if col not in ['team', 'season']:
+                        matchup[f"{col}_home"] = home_stats[col]
+                        matchup[f"{col}_away"] = away_stats[col]
+                        matchup[f"{col}_diff"] = home_stats[col] - away_stats[col]
+                
+                # Prepare features in correct order
+                matchup_df = pd.DataFrame([matchup])
+                available_features = [col for col in feature_columns if col in matchup_df.columns]
+                X = matchup_df[available_features]
+                
+                # Scale features
+                X_scaled = scaler.transform(X)
+                
+                # Make prediction
+                ensemble_pred, ensemble_prob, individual_preds = ensemble_predict(X_scaled)
+                
+                # Format individual predictions
+                individual_votes = {}
+                for model_name, pred in individual_preds.items():
+                    vote = home_team if pred[0] == 1 else away_team
+                    individual_votes[model_name] = vote
+                
+                predicted_winner = home_team if ensemble_pred[0] == 1 else away_team
+                confidence = ensemble_prob[0] if ensemble_pred[0] == 1 else (1 - ensemble_prob[0])
+                
+                # Check if game is completed and add actual results
+                home_score = game.get('home_score')
+                away_score = game.get('away_score')
+                game_completed = pd.notna(home_score) and pd.notna(away_score)
+                
+                actual_winner = None
+                prediction_correct = None
+                
+                if game_completed:
+                    actual_winner = home_team if home_score > away_score else away_team
+                    prediction_correct = (predicted_winner == actual_winner)
+                
+                # Add game prediction
+                game_prediction = {
+                    'game_id': game.get('game_id', ''),
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'predicted_winner': predicted_winner,
+                    'home_win_probability': float(ensemble_prob[0]),
+                    'confidence': float(confidence),
+                    'individual_votes': individual_votes,
+                    'game_time': game.get('gameday', ''),
+                    'week': week,
+                    'game_completed': game_completed,
+                    'home_score': int(home_score) if game_completed else None,
+                    'away_score': int(away_score) if game_completed else None,
+                    'actual_winner': actual_winner,
+                    'prediction_correct': prediction_correct
+                }
+                
+                predictions.append(game_prediction)
+                
+            except Exception as e:
+                print(f"❌ Error predicting {game.get('away_team', 'UNK')} @ {game.get('home_team', 'UNK')}: {str(e)}")
+                continue
+        
+        print(f"✅ Successfully predicted {len(predictions)} games")
+        
+        # Calculate accuracy statistics for completed games
+        completed_games = [g for g in predictions if g['game_completed']]
+        correct_predictions = [g for g in completed_games if g['prediction_correct']]
+        
+        accuracy_stats = {
+            'total_games': len(predictions),
+            'completed_games': len(completed_games),
+            'correct_predictions': len(correct_predictions),
+            'accuracy_percentage': round((len(correct_predictions) / len(completed_games)) * 100, 1) if completed_games else None
+        }
+        
+        return jsonify({
+            'season': season,
+            'week': week,
+            'games': predictions,
+            'accuracy_stats': accuracy_stats
+        })
+        
+    except Exception as e:
+        print(f"❌ Weekly prediction error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/health', methods=['GET'])
 def health():
     """Detailed health check"""
@@ -376,6 +551,6 @@ if __name__ == '__main__':
     # Load models on startup
     if load_artifacts():
         print("🚀 Starting NFL Predictor API...")
-        app.run(host='0.0.0.0', port=5000, debug=False)
+        app.run(host='0.0.0.0', port=8080, debug=False)
     else:
         print("❌ Failed to load models. Run train_and_save_model.py first!")

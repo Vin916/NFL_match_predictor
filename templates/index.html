@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏈 NFL Weekly Predictor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            padding: 30px 40px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .week-selector {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .week-selector label {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
+
+        .week-selector select {
+            padding: 12px 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+            min-width: 150px;
+        }
+
+        .predict-week-btn {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .predict-week-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+
+        .predict-week-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results-container {
+            padding: 40px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .loading .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .week-info {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #e8f4f8;
+            border-radius: 10px;
+        }
+
+        .week-info h2 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .game-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .game-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f8f9fa;
+        }
+
+        .game-time {
+            font-size: 0.9em;
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .matchup {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .team {
+            text-align: center;
+            flex: 1;
+        }
+
+        .team-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .team-record {
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+
+        .vs-divider {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 0 15px;
+        }
+
+        .prediction {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .predicted-winner {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #27ae60;
+            margin-bottom: 5px;
+        }
+
+        .confidence {
+            font-size: 1em;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .probability-bar {
+            width: 100%;
+            height: 8px;
+            background: #dee2e6;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .probability-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #27ae60, #2ecc71);
+            transition: width 0.5s ease;
+        }
+
+        .model-votes {
+            display: flex;
+            justify-content: space-around;
+            font-size: 0.85em;
+            color: #6c757d;
+        }
+
+        .vote {
+            text-align: center;
+        }
+
+        .vote-model {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .vote-team {
+            font-size: 0.8em;
+        }
+
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .no-games {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-size: 1.1em;
+        }
+
+        @media (max-width: 768px) {
+            .week-selector {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .games-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .matchup {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .vs-divider {
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏈 NFL Weekly Predictor</h1>
+            <p>AI-powered predictions for entire NFL weeks using real-time data</p>
+        </div>
+        
+        <div class="controls">
+            <div class="week-selector">
+                <label for="seasonSelect">Season:</label>
+                <select id="seasonSelect">
+                    <option value="2025">2025 Season</option>
+                    <option value="2024">2024 Season</option>
+                </select>
+                
+                <label for="weekSelect">Week:</label>
+                <select id="weekSelect">
+                    <option value="">Select Week</option>
+                </select>
+                
+                <button id="predictWeekBtn" class="predict-week-btn">
+                    🔮 Predict Week
+                </button>
+            </div>
+        </div>
+        
+        <div class="results-container">
+            <div id="results">
+                <div class="no-games">
+                    📅 Select a season and week to see game predictions
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const teams = {
+            'ARI': 'Arizona Cardinals',
+            'ATL': 'Atlanta Falcons', 
+            'BAL': 'Baltimore Ravens',
+            'BUF': 'Buffalo Bills',
+            'CAR': 'Carolina Panthers',
+            'CHI': 'Chicago Bears',
+            'CIN': 'Cincinnati Bengals',
+            'CLE': 'Cleveland Browns',
+            'DAL': 'Dallas Cowboys',
+            'DEN': 'Denver Broncos',
+            'DET': 'Detroit Lions',
+            'GB': 'Green Bay Packers',
+            'HOU': 'Houston Texans',
+            'IND': 'Indianapolis Colts',
+            'JAX': 'Jacksonville Jaguars',
+            'KC': 'Kansas City Chiefs',
+            'LA': 'Los Angeles Rams',
+            'LAC': 'Los Angeles Chargers',
+            'LV': 'Las Vegas Raiders',
+            'MIA': 'Miami Dolphins',
+            'MIN': 'Minnesota Vikings',
+            'NE': 'New England Patriots',
+            'NO': 'New Orleans Saints',
+            'NYG': 'New York Giants',
+            'NYJ': 'New York Jets',
+            'PHI': 'Philadelphia Eagles',
+            'PIT': 'Pittsburgh Steelers',
+            'SEA': 'Seattle Seahawks',
+            'SF': 'San Francisco 49ers',
+            'TB': 'Tampa Bay Buccaneers',
+            'TEN': 'Tennessee Titans',
+            'WAS': 'Washington Commanders'
+        };
+
+        // Populate week dropdown
+        function populateWeeks() {
+            const weekSelect = document.getElementById('weekSelect');
+            weekSelect.innerHTML = '<option value="">Select Week</option>';
+            
+            // Regular season weeks 1-18
+            for (let i = 1; i <= 18; i++) {
+                const option = new Option(`Week ${i}`, i);
+                weekSelect.add(option);
+            }
+            
+            // Playoff weeks
+            const playoffWeeks = [
+                { value: 'WC', text: 'Wild Card' },
+                { value: 'DIV', text: 'Divisional' },
+                { value: 'CON', text: 'Conference Championship' },
+                { value: 'SB', text: 'Super Bowl' }
+            ];
+            
+            playoffWeeks.forEach(week => {
+                const option = new Option(week.text, week.value);
+                weekSelect.add(option);
+            });
+        }
+
+        // Get weekly games and predictions
+        async function getWeeklyPredictions(season, week) {
+            try {
+                const response = await fetch('/predict_week', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        season: parseInt(season),
+                        week: week
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('Weekly prediction error:', error);
+                throw error;
+            }
+        }
+
+        // Format game time
+        function formatGameTime(gameTime) {
+            if (!gameTime) return 'TBD';
+            try {
+                const date = new Date(gameTime);
+                return date.toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
+            } catch {
+                return 'TBD';
+            }
+        }
+
+        // Display weekly results
+        function displayWeeklyResults(data) {
+            const resultsDiv = document.getElementById('results');
+            
+            if (!data.games || data.games.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="no-games">
+                        📅 No games found for ${data.season} Week ${data.week}
+                    </div>
+                `;
+                return;
+            }
+
+            // Create accuracy summary
+            let accuracySummary = '';
+            if (data.accuracy_stats && data.accuracy_stats.completed_games > 0) {
+                const accuracy = data.accuracy_stats.accuracy_percentage;
+                const correct = data.accuracy_stats.correct_predictions;
+                const total = data.accuracy_stats.completed_games;
+                
+                accuracySummary = `
+                    <div style="background: ${accuracy >= 60 ? '#d4edda' : accuracy >= 50 ? '#fff3cd' : '#f8d7da'}; 
+                                color: ${accuracy >= 60 ? '#155724' : accuracy >= 50 ? '#856404' : '#721c24'}; 
+                                padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                        🎯 <strong>Prediction Accuracy: ${accuracy}%</strong> (${correct}/${total} games correct)
+                    </div>
+                `;
+            }
+
+            const weekInfo = `
+                <div class="week-info">
+                    <h2>📅 ${data.season} NFL Season - Week ${data.week}</h2>
+                    <p>${data.games.length} games with AI predictions</p>
+                    ${accuracySummary}
+                </div>
+            `;
+
+            const gamesHtml = data.games.map(game => {
+                const homeTeamName = teams[game.home_team] || game.home_team;
+                const awayTeamName = teams[game.away_team] || game.away_team;
+                const winnerName = teams[game.predicted_winner] || game.predicted_winner;
+                const confidence = Math.round(game.confidence * 100);
+                const homeWinProb = Math.round(game.home_win_probability * 100);
+                
+                // Create score display for completed games
+                let scoreDisplay = '';
+                let resultStatus = '';
+                
+                if (game.game_completed) {
+                    const actualWinnerName = teams[game.actual_winner] || game.actual_winner;
+                    const isCorrect = game.prediction_correct;
+                    
+                    scoreDisplay = `
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
+                            <div style="font-weight: bold; font-size: 1.2em; margin-bottom: 10px;">
+                                <span style="color: ${game.actual_winner === game.away_team ? '#27ae60' : '#6c757d'};">
+                                    ${awayTeamName}: ${game.away_score}
+                                </span>
+                                <span style="margin: 0 10px;">-</span>
+                                <span style="color: ${game.actual_winner === game.home_team ? '#27ae60' : '#6c757d'};">
+                                    ${homeTeamName}: ${game.home_score}
+                                </span>
+                            </div>
+                            <div style="font-size: 0.9em; color: #6c757d;">
+                                Winner: <strong>${actualWinnerName}</strong>
+                            </div>
+                        </div>
+                    `;
+                    
+                    resultStatus = `
+                        <div style="background: ${isCorrect ? '#d4edda' : '#f8d7da'}; 
+                                    color: ${isCorrect ? '#155724' : '#721c24'}; 
+                                    padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center; font-weight: bold;">
+                            ${isCorrect ? '✅ PREDICTION CORRECT' : '❌ PREDICTION INCORRECT'}
+                        </div>
+                    `;
+                }
+                
+                return `
+                    <div class="game-card" style="border-left: 4px solid ${game.game_completed ? (game.prediction_correct ? '#28a745' : '#dc3545') : '#667eea'};">
+                        <div class="game-header">
+                            <div class="game-time">${formatGameTime(game.game_time)}</div>
+                            <div style="font-size: 0.8em; color: ${game.game_completed ? '#28a745' : '#6c757d'};">
+                                ${game.game_completed ? 'FINAL' : 'UPCOMING'}
+                            </div>
+                        </div>
+                        
+                        <div class="matchup">
+                            <div class="team">
+                                <div class="team-name">${awayTeamName}</div>
+                                <div class="team-record">@ ${game.away_team}</div>
+                            </div>
+                            <div class="vs-divider">@</div>
+                            <div class="team">
+                                <div class="team-name">${homeTeamName}</div>
+                                <div class="team-record">${game.home_team}</div>
+                            </div>
+                        </div>
+                        
+                        ${scoreDisplay}
+                        ${resultStatus}
+                        
+                        <div class="prediction">
+                            <div class="predicted-winner">🔮 Predicted: ${winnerName}</div>
+                            <div class="confidence">Confidence: ${confidence}%</div>
+                            <div class="probability-bar">
+                                <div class="probability-fill" style="width: ${homeWinProb}%"></div>
+                            </div>
+                            <div style="font-size: 0.9em; color: #6c757d; margin-bottom: 10px;">
+                                Home Win Probability: ${homeWinProb}%
+                            </div>
+                            
+                            <div class="model-votes">
+                                ${Object.entries(game.individual_votes).map(([model, vote]) => `
+                                    <div class="vote">
+                                        <div class="vote-model">${model.split(' ')[0]}</div>
+                                        <div class="vote-team">${teams[vote] ? vote : vote}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            resultsDiv.innerHTML = weekInfo + `<div class="games-grid">${gamesHtml}</div>`;
+        }
+
+        // Display loading state
+        function showLoading() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>Loading games and making predictions...</div>
+                    <div style="font-size: 0.9em; margin-top: 10px; opacity: 0.8;">
+                        Fetching real-time NFL data and running AI models
+                    </div>
+                </div>
+            `;
+        }
+
+        // Display error
+        function displayError(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="error">❌ ${message}</div>`;
+        }
+
+        // Handle week prediction
+        document.getElementById('predictWeekBtn').addEventListener('click', async () => {
+            const season = document.getElementById('seasonSelect').value;
+            const week = document.getElementById('weekSelect').value;
+            const predictBtn = document.getElementById('predictWeekBtn');
+            
+            if (!week) {
+                alert('Please select a week');
+                return;
+            }
+            
+            // Show loading state
+            predictBtn.disabled = true;
+            predictBtn.textContent = '🔄 Predicting...';
+            showLoading();
+            
+            try {
+                const predictions = await getWeeklyPredictions(season, week);
+                displayWeeklyResults(predictions);
+            } catch (error) {
+                displayError('Failed to get weekly predictions. Please try again.');
+            } finally {
+                predictBtn.disabled = false;
+                predictBtn.textContent = '🔮 Predict Week';
+            }
+        });
+
+        // Initialize
+        populateWeeks();
+    </script>
+</body>
+</html>
