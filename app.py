@@ -50,7 +50,12 @@ def load_artifacts():
         
         # Load feature columns
         if os.path.exists('feature_columns.pkl'):
-            feature_columns = joblib.load('feature_columns.pkl')
+            feature_data = joblib.load('feature_columns.pkl')
+            # Handle both old format (list) and new format (dict)
+            if isinstance(feature_data, dict):
+                feature_columns = feature_data['columns']
+            else:
+                feature_columns = feature_data
             print("✅ Loaded feature columns")
         else:
             print("⚠️  feature_columns.pkl not found")

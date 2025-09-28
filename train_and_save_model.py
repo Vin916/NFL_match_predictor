@@ -170,8 +170,13 @@ class NFLModelTrainer:
         joblib.dump(self.scaler, "scaler.pkl")
         print("Saved scaler.pkl")
         
-        # Save feature columns
-        joblib.dump(self.feature_columns, "feature_columns.pkl")
+        # Save feature columns with metadata
+        feature_data = {
+            'columns': self.feature_columns,
+            'version': 'final',
+            'timestamp': 'final_commit'
+        }
+        joblib.dump(feature_data, "feature_columns.pkl")
         print("Saved feature_columns.pkl")
         
         print("\n✅ All models and artifacts saved successfully!")
