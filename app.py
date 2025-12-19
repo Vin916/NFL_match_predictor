@@ -406,22 +406,39 @@ def predict_week():
             })
         
         # Get team statistics for predictions
+        # IMPORTANT: Only use data from weeks BEFORE the predicted week
         try:
             # Get baseline stats from previous season
             baseline_year = season - 1 if season > 2022 else 2022
             baseline_schedules = nfl.import_schedules([baseline_year])
             baseline_stats = prepare_team_stats(baseline_schedules)
             
-            # Get current season stats
+            # Get current season stats - ONLY from weeks before the predicted week
             current_completed = schedules.dropna(subset=['home_score', 'away_score'])
             
-            if len(current_completed) > 0:
-                current_stats = prepare_team_stats(current_completed)
+            # Filter to only include games from previous weeks
+            if isinstance(week, str) and week.upper() in ['WC', 'DIV', 'CON', 'SB']:
+                # For playoff weeks, use all regular season games (weeks 1-18)
+                prior_games = current_completed[current_completed['week'].apply(
+                    lambda w: isinstance(w, (int, float)) and w <= 18
+                )]
+            else:
+                # For regular season, only use games from weeks before this one
+                target_week = int(week)
+                prior_games = current_completed[current_completed['week'].apply(
+                    lambda w: isinstance(w, (int, float)) and w < target_week
+                )]
+            
+            print(f"Using {len(prior_games)} prior games for team stats (weeks before {week})")
+            
+            if len(prior_games) > 0:
+                current_stats = prepare_team_stats(prior_games)
                 # Combine with weighted average (90% current, 10% baseline)
                 team_averages = combine_weighted_stats(baseline_stats, current_stats)
             else:
-                # Use baseline stats if no current season games completed
-                team_averages = baseline_stats
+                # Use baseline stats if no prior games in current season
+                print(f"No prior games for Week {week}, using previous season baseline")
+                team_averages = baseline_stats.copy()
                 team_averages['season'] = season
             
         except Exception as e:
